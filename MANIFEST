@@ -4,6 +4,8 @@ lib/Net/Async/DigitalOcean.pm
 MANIFEST			This list of files
 README
 t/00_meta.t
+t/00_auth.t
+t/00_account.t
 t/00_constructor.t
 t/00_lists.t
 t/01_droplets.t
