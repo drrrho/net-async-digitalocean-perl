@@ -14,7 +14,7 @@ unless ($warn) {
     select (STDERR); $| = 1;
 }
 
-use constant DONE => 0;
+use constant DONE => 1;
 
 use JSON;
 use HTTP::Status qw(:constants);
@@ -45,12 +45,12 @@ eval {
 if (DONE) {
     my $AGENDA = q{droplets/volumes: };
 
-    my $do = Net::Async::DigitalOcean->new( loop => $loop, endpoint => undef );
-    $do->start_actionables( 2 );
+    my $do = Net::Async::DigitalOcean->new( loop => $loop, endpoint => undef, ); # tracing => 1 );
+    $do->start_actionables( 5 );
 
     my $dro = $do->create_droplet({
 	"name"       => "example.com",
-	"region"     => "nyc3",
+	"region"     => "nyc1",
 	"size"       => "s-1vcpu-1gb",
 	"image"      => "openfaas-18-04",
 	"ssh_keys"   => [],
@@ -59,10 +59,10 @@ if (DONE) {
 	"monitoring" => 'true',
 	"tags"       => [	    "env:prod",	    "web"	    ],
 	"user_data"  => "#cloud-config\nruncmd:\n  - touch /test.txt\n",
-	"vpc_uuid"   => "760e09ef-dc84-11e8-981e-3cfdfeaae000"
+#	"vpc_uuid"   => "760e09ef-dc84-11e8-981e-3cfdfeaae000"
 				  })->get;
 
-    my $vol = $do->create_volume({
+    my $vol1 = $do->create_volume({
 	"size_gigabytes"   => 10,
 	"name"             => "example",
 	"description"      => "Block store for examples",
@@ -70,17 +70,18 @@ if (DONE) {
 	"filesystem_type"  => "ext4",
 	"filesystem_label" => "example",
 	'tags'             => [],
-			       })->get; $vol = $vol->{volume};
-#warn Dumper $vol; 
-    my $f = $do->volume_attach( $vol->{id}, { type       => 'attach',
-					      droplet_id => $dro->{id},
-					      region     => $vol->{region}->{slug} } );
+			       })->get; $vol1 = $vol1->{volume};
+#warn Dumper $vol1; 
+    my $f = $do->volume_attach( $vol1->{id}, { type       => 'attach',
+					       droplet_id => $dro->{id},
+					       region     => 'nyc1'
+				             } );
     isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
     $f->get;
     ok(1 , $AGENDA.'attach done');
 #--
     my $dro2 = $do->droplet( id => $dro->{id} )->get; $dro2 = $dro2->{droplet};
-    is_deeply($dro2->{volume_ids}, [ $vol->{id} ], $AGENDA.'attached volumes');
+    is_deeply($dro2->{volume_ids}, [ $vol1->{id} ], $AGENDA.'attached volumes');
 #--
     my $vol2 = $do->create_volume({
 	"size_gigabytes"   => 10,
@@ -93,141 +94,49 @@ if (DONE) {
 			       })->get; $vol2 = $vol2->{volume};
     $do->volume_attach( $vol2->{id}, { type       => 'attach',
 				       droplet_id => $dro->{id},
-				       region     => $vol2->{region}->{slug} } )->get;
+				       volume_name => "volume2",
+#				       region     => 'nyc1'
+			             } )->get;
     $dro2 = $do->droplet( id => $dro->{id} )->get; $dro2 = $dro2->{droplet};
-    ok(eq_set( $dro2->{volume_ids}, [ $vol->{id}, $vol2->{id} ] ), $AGENDA.'attached volumes 2');
+    ok(eq_set( $dro2->{volume_ids}, [ $vol1->{id}, $vol2->{id} ] ), $AGENDA.'attached volumes 2');
+#--
+    my $vol3 = $do->create_volume({
+	"size_gigabytes"   => 10,
+	"name"             => "example3",
+	"description"      => "Block store for examples",
+	"region"           => "nyc3",   # <-----
+	"filesystem_type"  => "ext4",
+	"filesystem_label" => "example",
+	'tags'             => [],
+			       })->get; $vol3 = $vol3->{volume};
+    throws_ok {
+	$do->volume_attach( $vol3->{id}, { type       => 'attach',
+					   droplet_id => $dro->{id},
+					   volume_name => "volume3",
+			                 } )->get;
+    } qr/allocation/, $AGENDA.'region mismatch';
 
 #--
-    $do->volume_attach( $vol->{id}, { type       => 'detach',
-				      droplet_id => $dro->{id},
-				      region     => $vol->{region}->{slug} } )->get;
+    $do->volume_attach( $vol1->{id}, { type       => 'detach',
+				       droplet_id => $dro->{id},
+				       region     => 'nyc1'
+			             } )->get;
     $dro2 = $do->droplet( id => $dro->{id} )->get; $dro2 = $dro2->{droplet};
     is_deeply($dro2->{volume_ids}, [ $vol2->{id} ], $AGENDA.'attached volumes 3');
 #--
     $do->volume_attach( $vol2->{id}, { type       => 'detach',
 				       droplet_id => $dro->{id},
-				       region     => $vol2->{region}->{slug} } )->get;
+				       region     => 'nyc1' 
+			             } )->get;
     $dro2 = $do->droplet( id => $dro->{id} )->get; $dro2 = $dro2->{droplet};
     is_deeply($dro2->{volume_ids}, [ ], $AGENDA.'attached volumes 4');
 # warn Dumper $dro2;
-}
 
-if (DONE) {
-    my $AGENDA = q{droplet associates: };
+#-- TODO use wrong region at attach/detach
 
-    my $do = Net::Async::DigitalOcean->new( loop => $loop, endpoint => undef );
-    $do->start_actionables( 2 );
-
-    my $f;
-
-    my $dro = $do->create_droplet({
-	"name"       => "example.com",
-	"region"     => "nyc3",
-	"size"       => "s-1vcpu-1gb",
-	"image"      => "openfaas-18-04",
-	"ssh_keys"   => [],
-	"backups"    => 'true',
-	"ipv6"       => 'true',
-	"monitoring" => 'true',
-	"tags"       => [	    "env:prod",	    "web"	    ],
-	"user_data"  => "#cloud-config\nruncmd:\n  - touch /test.txt\n",
-	"vpc_uuid"   => "760e09ef-dc84-11e8-981e-3cfdfeaae000"
-				  })->get;
-
-    my $vol = $do->create_volume({
-	"size_gigabytes"   => 10,
-	"name"             => "example",
-	"description"      => "Block store for examples",
-	"region"           => "nyc1",
-	"filesystem_type"  => "ext4",
-	"filesystem_label" => "example",
-	'tags'             => [],
-			       })->get; $vol = $vol->{volume};
-#warn Dumper $vol; 
-    $do->volume_attach( $vol->{id}, { type       => 'attach',
-				      droplet_id => $dro->{id},
-				      region     => $vol->{region}->{slug} } )->get;
-    my $vol2 = $do->create_volume({
-	"size_gigabytes"   => 10,
-	"name"             => "example2",
-	"description"      => "Block store for examples",
-	"region"           => "nyc1",
-	"filesystem_type"  => "ext4",
-	"filesystem_label" => "example",
-	'tags'             => [],
-			       })->get; $vol2 = $vol2->{volume};
-    $do->volume_attach( $vol2->{id}, { type       => 'attach',
-				       droplet_id => $dro->{id},
-				       region     => $vol2->{region}->{slug} } )->get;
-#-- list this
-    $f = $do->associated_resources( id => $dro->{id} );
-    isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
-    my $ass = $f->get;
-    ok( eq_set( [ map { $_->{id} } @{ $ass->{volumes} } ],
-		[ $vol->{id}, $vol2->{id} ]), $AGENDA.'found attached volumes');
-    ok( eq_set( [ map { $_->{id} } @{ $ass->{snapshots} } ],
-		[]), $AGENDA.'found no attached snapshots');
-    ok( eq_set( [ map { $_->{id} } @{ $ass->{volume_snapshots} } ],
-		[]), $AGENDA.'found no attached volume snapshots');
-#--
-    $do->snapshots ( volume => $vol->{id} )->get;
-    $do->perform_droplet_actions( id => $dro->{id}, 'snapshot' )->get;
-
-    $ass = $do->associated_resources( id => $dro->{id} )->get;
-    my $sns = $do->snapshots ( droplet => $dro->{id} )->get; $sns = $sns->{snapshots};
-
-    ok( eq_set( [ map { $_->{id} } @{ $ass->{volumes} } ],
-		[ $vol->{id}, $vol2->{id} ]), $AGENDA.'found attached volumes');
-    ok( eq_set( [ map { $_->{id} } @{ $ass->{snapshots} } ],
-		[ map { $_->{id} } @$sns ]), $AGENDA.'found one attached snapshots');
-    ok( eq_set( [ map { $_->{id} } @{ $ass->{volume_snapshots} } ],
-		[]), $AGENDA.'found no attached volume snapshots');
-#--
-    $do->create_snapshot( $vol->{id}, { "name" => "big-data-snapshot1475261774" } )->get;
-#--
-    $ass = $do->associated_resources( id => $dro->{id} )->get;
-    ok( eq_set ([ map { $_->{name} } @{ $ass->{volume_snapshots} } ], [ 'big-data-snapshot1475261774' ]), $AGENDA.'volume snapshot');
-# warn Dumper $ass;
-#--
-    $f = $do->delete_with_associated_resources( id => $dro->{id} );
-    isa_ok($f, 'IO::Async::Future', $AGENDA.'future for assoc');
-
-    my $destroyed;
-    $loop->watch_time( after => $_, code => sub { diag "polling associated resources " if $warn;
-						 eval {
-						     $ass = $do->associated_resources( check_status => $dro->{id} )->get;
-#warn Dumper $ass;
-						     is( $ass->{droplet}->{id}, $dro->{id}, $AGENDA.'status id');
-						     is( $ass->{droplet}->{name}, $dro->{name}, $AGENDA.'status name');
-						     diag "destroyed: ". $ass->{droplet}->{destroyed_at} if defined $ass->{droplet}->{destroyed_at};
-						     $destroyed //= $ass->{droplet}->{destroyed_at};
-						     ok($ass->{droplet}->{destroyed_at}, $AGENDA.'destroyed is destroyed') if $destroyed;
-						     is((scalar @{$ass->{resources}->{volumes}}),   2, $AGENDA.'volumes pending');
-						     is((scalar @{$ass->{resources}->{snapshots}}), 1, $AGENDA.'snapshots pending');
-						     is((scalar @{$ass->{resources}->{volume_snapshots}}), 1, $AGENDA.'volume snapshots pending');
-						     
-						 }; if ($@) {
-						     like ($@, qr/not found/i, $AGENDA.'droplet not found anymore');
-						 } else { # it was ok
-#						     ok( eq_set([qw(volumes snapshots volume_snapshots)], [keys %$ass]), $AGENDA.'found associations still there');
-#						     warn Dumper $ass;
-						 }
-		       } ) for (1, 3, 5, 7, 9);
-    $f->get; # block here
-    ok( 1, $AGENDA."deleting all associated resources done");
-
-    throws_ok {
-	$do->associated_resources( id => $dro->{id} )->get;
-    } qr/not found/i, $AGENDA.'droplet not found by id';
-
-    $loop->watch_time( after => 20, code => sub { diag "stopping loop" if $warn; $loop->stop; });
-    $loop->run;
-
-# last $ass test
-    ok( $ass->{droplet}->{destroyed_at}, $AGENDA."droplet destroyed");
-    map { ok($_->{destroyed_at}, $AGENDA."$_ destroyed") } @{$ass->{resources}->{volumes}};
-    map { ok($_->{destroyed_at}, $AGENDA."$_ destroyed") } @{$ass->{resources}->{snapshots}};
-    map { ok($_->{destroyed_at}, $AGENDA."$_ destroyed") } @{$ass->{resources}->{volume_snapshots}};
+#-- cleanup
+    $do->delete_volume( id => $_->{id} )->get        for ($vol1, $vol2, $vol3);
+    $do->delete_droplet( id => $dro->{id} )->get;
 }
 
 done_testing;
