@@ -22,7 +22,7 @@ use HTTP::Status qw(:constants);
 use IO::Async::Loop;
 my $loop = IO::Async::Loop->new;
 
-$ENV{DIGITALOCEAN_API} //= 'http://0.0.0.0:8080/';
+# $ENV{DIGITALOCEAN_API} //= 'http://0.0.0.0:8080/';
 
 use Net::Async::DigitalOcean;
 

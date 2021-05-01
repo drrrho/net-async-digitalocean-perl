@@ -12,7 +12,6 @@ sub prepare_request {
 #warn "prepare $elf";
     $elf->SUPER::prepare_request( $req );
     warn $req->as_string . " >>>> DigitalOcean" if $elf->{digitalocean_trace};
-#warn "before sending ".Dumper $req;
 
     if (my $limits = $elf->{digitalocean_rate_limit}) {                       # if we already experienced some limit information from the server
 #warn "rate_limit current ".Dumper $limits;  # 
@@ -48,10 +47,8 @@ sub prepare_request {
 
 sub process_response {
     my ($elf, $resp) = @_;
-#warn "received raw response $elf" .Dumper $resp;
     warn "DigitalOcean >>>> ".$resp->as_string if $elf->{digitalocean_trace};
 
-#warn "\\_ rate  ".$elf->{digitalocean_rate_limit_policy};
     if ($elf->{digitalocean_rate_limit_policy}) { # if this is turned on
 	if (my $limit = $resp->headers->header('RateLimit-Limit')) { # and if we actually got something
 	    $elf->{digitalocean_rate_limit} = { Limit     => $limit,
@@ -84,9 +81,21 @@ our $log = Log::Log4perl->get_logger("nado");
 
 =head1 NAME
 
-Net::Async::DigitalOcean - Asynchronous API for DigitalOcean REST API
+Net::Async::DigitalOcean - Asynchronous Library for DigitalOcean REST API
 
 =head1 SYNOPSIS
+
+=head1 xxxx
+
+no classes, do not like over-engineering, JSON direct
+
+spec
+
+
+
+=head1 INTERFACE
+
+=head2 Constructor
 
 =cut
 
@@ -134,6 +143,7 @@ around BUILDARGS => sub {
     use HTTP::Cookies;
     my $http = Net::Async::DigitalOcean::RateLimited->new(
 	user_agent => "Net::Async::DigitalOcean $VERSION",
+#	timeout    => 30,
 	cookie_jar => HTTP::Cookies->new( 
 	    file     => "$ENV{'HOME'}/.digitalocean-perl-cookies",
 	    autosave => 1, ),
@@ -152,6 +162,12 @@ around BUILDARGS => sub {
                           );
 };
 
+=pod
+
+=head2 Methods
+
+=cut
+
 sub start_actionables {
     my ($elf, $interval) = @_;
 
@@ -167,10 +183,10 @@ sub start_actionables {
 #	    my %done; # collect done actions here
 	    foreach my $action ( values %$actions ) {
 		my ($a, $f, $u, $r) = @$action;
-		$log->debug( "probing action $a->{id} for $a->{type}");
 # warn "looking at ".Dumper $a, $u, $r;
 		next if $a->{status} eq 'completed';
 		next unless defined $u;   # virtual actions
+		$log->debug( "probing action $a->{id} for ".($a->{type}//$a->{rel}));
 #warn "not completed asking for ".$a->{id}.' at '.$u;
 # TODO type check
 		my $f2 = _mk_json_GET_future( $elf, $u );
@@ -180,15 +196,15 @@ sub start_actionables {
 #warn "asking for action done, received ".Dumper $b;
 		    if ($b->{status} eq 'completed') {
 #warn "!!! completed with result $r".Dumper $r;
-			$action->[0] = $b;                        # replace the pending action with the completed version
-#			$done{ $b->{id} }++;                      # done in THIS run
-			$f->done( $r ); # if                         # report this as done, but ...
-#			           grep { not $done{ $_->{id} } } # not counting those which we just finished in this run
-# map { warn Dumper $_; $_ }
-#			           map { $_->[0] }
-#			           grep { $f == $_->[1] }         # unless this future waits for more actions to be completed
-#			           values %$actions;              # all pending actions
-		    }                                             # not completed: keep things as they are
+			if ($f->is_done) {                                   # this future has already been completed, THIS IS STRANGE
+			    $log->warn("already completed action $a->{id} was again completed, ignoring...");
+			} else {
+			    $action->[0] = $b;                               # replace the pending action with the completed version
+			    $f->done( $r ); # if                             # report this as done, but ...
+			}
+		    } elsif ($b->{status} eq 'errored') {
+			$f->fail( $b );
+		    }                                                        # not completed: keep things as they are
 			      } );
 	    }
 #warn "done ".Dumper [ keys %done ];
@@ -293,27 +309,38 @@ sub _handle_response {
     } elsif ($resp->code == HTTP_NO_CONTENT) {
 	$f->done( );
 
-    } elsif ($resp->code == HTTP_CREATED) {                                    # POST returned data
-	if ($resp->content_type eq 'application/json') {
-	    $f->done( from_json ($resp->content) );
-	} else {
-	    $f->fail( "returned not JSON" );
-	}
-    } elsif ($resp->code == HTTP_ACCEPTED) {                              # for long-living actions
+    # } elsif ($resp->code == HTTP_CREATED) {                                                                   # POST returned data
+# 	if ($resp->content_type eq 'application/json') {                                                      # most likely another JSON here
+# 	    my $data = from_json ($resp->content);
+# #warn Dumper $data;
+# 	    if (my $action = $data->{action}) {                                                               # if we only get an action to wait for
+# #warn "got action".Dumper $action;
+# 		$do->_actions->{ $action->{id} } = [ $action, $f, 'v2/actions/'.$action->{id}, 42 ];          # memory this, the future, and a reasonable final result
+# 	    } else {                                                                                          # this looks insanly convoluted? I wholeheartedly agree.
+# 	    }
+# 	} else {
+# 	    $f->fail( "returned not JSON" );
+# 	}
+    } elsif ($resp->code == HTTP_ACCEPTED
+          || $resp->code == HTTP_CREATED) {                                                                   # for long-living actions
 #warn "got accepted";
 	if ($resp->content_type eq 'application/json') {
 	    my $data = from_json ($resp->content);
 #warn Dumper $data;
-	    if (my $action = $data->{action}) {                                                                # if we only get an action to wait for
+	    if (my $action = $data->{action}) {                                                               # if we only get an action to wait for
 #warn "got action".Dumper $action;
-		$do->_actions->{ $action->{id} } = [ $action, $f, 'v2/actions/'.$action->{id}, 42 ];           # memory this, the future, and a reasonable final result
+		$do->_actions->{ $action->{id} } = [ $action, $f, 'v2/actions/'.$action->{id}, 42 ];          # memory this, the future, and a reasonable final result
 
 	    } elsif (my $links = $data->{links}) {
 #warn "link actions";
 		if (my $res = $data->{droplet}) {
-		    foreach my $action (@{ $links->{actions} }) {                                              # should probably be only one entry
-			$action->{status} = 'in-progress';                                                     # faking it
-			$do->_actions->{ $action->{id} } = [ $action, $f, $action->{href}, $res ];             # memory this, the future, and a reasonable final result
+		    my $endpoint = $do->endpoint;
+		    foreach my $action (@{ $links->{actions} }) {                                             # should probably be only one entry
+#warn "action found ".Dumper $action;
+			$action->{status} = 'in-progress';                                                    # faking it
+			my $href = $action->{href};
+			$href =~ s/$endpoint//; # remove endpoint to make href relative
+			$do->_actions->{ $action->{id} } = [ $action, $f, $href, $res ];                      # memory this, the future, and a reasonable final result
 		    }
 
 		} elsif ($res = $data->{droplets}) {
@@ -322,50 +349,82 @@ sub _handle_response {
 		    my @ids;
 #warn "got actions";
 		    foreach my $action (@{ $links->{actions} }) {
-#warn Dumper $action;
-			my $f2 = $do->http->loop->new_future;                                                  # for every action we create a future
-			push @fs, $f2;                                                                         # collect the futures
-			$action->{status} = 'in-progress';                                                     # faking it
-			$do->_actions->{ $action->{id} } = [ $action, $f2, 'v2/actions/'.$action->{id}, 42 ];  # memorize this, the future, the URL and a reasonable final result
-			push @ids, $action->{id};                                                              # collect the ids
+#warn "action found ".Dumper $action;
+			my $f2 = $do->http->loop->new_future;                                                 # for every action we create a future
+			push @fs, $f2;                                                                        # collect the futures
+			$action->{status} = 'in-progress';                                                    # faking it
+			$do->_actions->{ $action->{id} } = [ $action, $f2, 'v2/actions/'.$action->{id}, 42 ]; # memorize this, the future, the URL and a reasonable final result
+			push @ids, $action->{id};                                                             # collect the ids
 		    }
 #warn "ids ".Dumper \@ids;
-		    my $f3 = Future->wait_all( @fs )                                                           # all these futures will be waited for to be done, before
-			->then( sub {                                                                          # warn "all subfutures done ";
-			    $f->done( $res );                                                                  # the final future can be called done
+		    my $f3 = Future->wait_all( @fs )                                                          # all these futures will be waited for to be done, before
+			->then( sub {                                                                         # warn "all subfutures done ";
+			    $f->done( $res );                                                                 # the final future can be called done
 				} );
-		    $do->_actions->{ join '|', @ids } = [ { id => 'xxx'.int(rand(10000)),                      # id does not matter
+		    $do->_actions->{ join '|', @ids } = [ { id     => 'xxx'.int(rand(10000)),                 # id does not matter
+							    rel    => 'compoud-create',                       # my invention
 							    status => 'compound-in-progress' }, $f3, undef, $res ]; # compound, virtual action
 
 		} else { # TODO, other stuff
 		    warn "unhandled situation for ".Dumper $data;
 		}
-	    } elsif (my $actions = $data->{actions}) {                                                     # multiple actions bundled (e.g. reboot several droplets)
+	    } elsif (my $actions = $data->{actions}) {                                                        # multiple actions bundled (e.g. reboot several droplets)
 		my @fs;
 		my @ids;
 #warn "got actions";
 		foreach my $action (@$actions) {
-		    my $f2 = $do->http->loop->new_future;                                                  # for every action we create a future
+#warn "action found ".Dumper $action;
+		    my $f2 = $do->http->loop->new_future;                                                     # for every action we create a future
 		    push @fs, $f2; # collect the futures
-		    $do->_actions->{ $action->{id} } = [ $action, $f2, 'v2/actions/'.$action->{id}, 42 ];  # memorize this, the future, the URL and a reasonable final result
-		    push @ids, $action->{id};                                                              # collect the ids
+		    $do->_actions->{ $action->{id} } = [ $action, $f2, 'v2/actions/'.$action->{id}, 42 ];     # memorize this, the future, the URL and a reasonable final result
+		    push @ids, $action->{id};                                                                 # collect the ids
 		}
-		my $f3 = Future->wait_all( @fs )                                                           # all these futures will be waited for to be done, before
+		my $f3 = Future->wait_all( @fs )                                                              # all these futures will be waited for to be done, before
 		    ->then( sub { # warn "all subfutures done ";
-			$f->done( 42 );                                               # the final future can be called done
+			$f->done( 42 );                                                                       # the final future can be called done
 			    } );
-		$do->_actions->{ join '|', @ids } = [ { id => 'xxx',                                       # id does not matter
+		$do->_actions->{ join '|', @ids } = [ { id => 'xxx',                                          # id does not matter
 							status => 'compound-in-progress' }, $f3, undef, 42 ]; # compound, virtual action
 		
 	    } else {
-		warn "not handled reaction from the server ".Dumper $data;
-		$f->done( 42 );
+		$f->done( $data );
+#		warn "not handled reaction from the server ".Dumper $data;
+#		$f->done( 42 );
 	    }
 	} else {
 	    $f->fail( "returned data not JSON" );
 	}
-    } elsif (! $resp->is_redirect) {
+    } elsif ($resp->is_redirect) {
 	    $f->fail( _message_crop( $resp ) );
+
+    } elsif ($resp->code == HTTP_TOO_MANY_REQUESTS) {
+	my $json = $resp->content;
+	my $data = from_json ($json);
+#warn "message ".$data->{message};
+	my $bounce_time; # agenda
+	if ($data->{message} =~ /rate-limited.+?(\d+)m(\d+)s/) {                                               # detect a hint that this operation is limited
+#warn ">>>$1<<>>$2<<<";
+	    $bounce_time   = $1 * 60 + $2; # seconds
+	    $bounce_time //= 30;           # default
+	} else {
+	    $bounce_time = 30;             # just guessing something
+	}
+	$log->info( "server sent HTTP_TOO_MANY_REQUEST => will have to wait for $bounce_time seconds, and then repeat request" );
+
+	$do->loop->watch_time( after => $bounce_time,
+			       code  => sub { 
+				       $log->debug( "repeating previously failed request to ".$resp->request->uri );
+				       $do->http->do_request( request => $resp->request )
+					        ->on_done( sub {
+						    my ($resp) = @_;
+						    _handle_response( $do, $resp, $f );
+							   } )
+						->on_fail( sub {
+						    my ( $message ) = @_; chop $message;
+						    $log->logdie ("message from server '$message'");
+							   } );
+			       });
+
 
     } elsif (! $resp->is_success) {
 #warn "failed request ".$resp->message . ' (' . $resp->code . ') '. $resp->content;

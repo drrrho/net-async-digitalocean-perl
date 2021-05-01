@@ -39,7 +39,6 @@ $Net::Async::DigitalOcean::log->level('DEBUG') if $warn;
 eval {
     Net::Async::DigitalOcean->new( loop => $loop, endpoint => undef );
 }; if ($@) {
-    diag $@;
     plan skip_all => 'no endpoint defined ( e.g. export DIGITALOCEAN_API=http://0.0.0.0:8080/ )';
     done_testing;
 }

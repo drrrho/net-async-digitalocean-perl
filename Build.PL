@@ -10,19 +10,26 @@ my $debian = Module::Build->subclass(
     code => <<'SUBCLASS' );
 
 sub DEBVERSION {
-    return 1;
+    return 3;
+}
+
+sub ACTION_README {
+    my $self = shift;
+
+    $self->do_system(qq{   pod2readme -t README lib/Net/Async/DigitalOcean.pm } );
 }
 
 sub ACTION_debian {
     my $self = shift;
 
+    $self->depends_on("README");
     $self->depends_on("distdir");
 
     my $version = $self->dist_version;
     my $debversion = $self->DEBVERSION;
     $self->do_system(qq{   dh-make-perl --build --version=$version-$debversion Net-Async-DigitalOcean-$version } );
-
 }
+
 sub ACTION_inject {
     my $self = shift;
 
@@ -53,12 +60,19 @@ my $builder = $debian->new(
 	'IO::Async' => 0,
 	'HTTP::Status' => 0,
 	'Future::Utils' => 0,
+	'Test::CheckManifest' => 0.9,
+	'Test::Pod::Coverage' => 0,
     },
     requires => {
-	'IO::Async' => 0,
-	'JSON' => 0,
-	'HTTP::Status' => 0,
+	'IO::Async'        => 0,
+	'JSON'             => 0,
+	'HTTP::Status'     => 0,
 	'Net::Async::HTTP' => 0,
+	'HTTP::Request'    => 0,
+	'HTTP::Response'   => 0,
+	'HTTP::Cookies'    => 0,
+	'Moose'            => 0,
+	'Log::Log4perl'    => 0,
     },
     add_to_cleanup     => [ 'Net-Async-DigitalOcean-*' ],
     create_makefile_pl => 'traditional',

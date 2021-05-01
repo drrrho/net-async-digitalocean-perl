@@ -36,7 +36,12 @@ eval {
 
 { # initalize and reset server state
     my $do = Net::Async::DigitalOcean->new( loop => $loop, endpoint => undef );
-    $do->meta_reset->get;
+    eval {
+	$do->meta_reset->get;
+    }; if ($@) {
+	plan skip_all => 'no meta API supported';
+	done_testing;
+    }
 }
 
 if (DONE) { # initalize and reset server state

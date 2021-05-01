@@ -23,10 +23,11 @@ use IO::Async::Loop;
 my $loop = IO::Async::Loop->new;
 
 #$ENV{DIGITALOCEAN_API} //= 'http://0.0.0.0:8080/';
+#$ENV{DIGITALOCEAN_API} //= 'https://api.digitalocean.com/v2/';
 
 use Net::Async::DigitalOcean;
 
-eval {
+eval { # figure out whether we should test at all
     Net::Async::DigitalOcean->new( loop => $loop, endpoint => undef );
 }; if ($@) {
     plan skip_all => 'no endpoint defined ( e.g. export DIGITALOCEAN_API=http://0.0.0.0:8080/ )';
@@ -35,7 +36,11 @@ eval {
 
 { # initalize and reset server state
     my $do = Net::Async::DigitalOcean->new( loop => $loop, endpoint => undef );
-    $do->meta_reset->get;
+    eval {
+	$do->meta_reset->get;
+    }; if ($@) {
+	diag "meta interface missing => no reset";
+    }
 }
 
 if (DONE) {
@@ -55,9 +60,11 @@ if (DONE) {
     isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
     my $vol = $f->get;  $vol = $vol->{volume}; # $vol->{tags} //= [];
 #warn Dumper $vol;
+    $vol->{tags} //= [];
     is ($vol->{name}, 'example', $AGENDA.'name');
     is (scalar( @{ $vol->{droplet_ids} }), 0, $AGENDA.'droplets');
     is ($vol->{region}->{slug}, 'nyc1', $AGENDA.'region');
+
 #--
     $f = $do->volume( id => $vol->{id} );
     isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
@@ -93,7 +100,7 @@ if (DONE) {
 	"size_gigabytes"   => 10,
 	"name"             => "example",
 	"description"      => "Block store for examples",
-	"region"           => "sfo1",
+	"region"           => "fra1",
 	"filesystem_type"  => "ext4",
 	"filesystem_label" => "example2",
 			       })->get;
@@ -109,64 +116,72 @@ if (DONE) {
 	    "size_gigabytes"   => 10,
 	    "name"             => "example",
 	    "description"      => "Block store for examples",
-	    "region"           => "fra1", # does not exist
+	    "region"           => "fra111", # does not exist
 	    "filesystem_type"  => "ext4",
 	    "filesystem_label" => "example2",
 			   })->get;
     } qr/region/, $AGENDA.'creation fail';
-#====
-#-- snapshots
-    $f = $do->create_snapshot( $vol->{id}, { "name" => "big-data-snapshot1475261774" } );
-    isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
-    my $snap = $f->get; $snap = $snap->{snapshot};
-    is ($snap->{resource_type}, 'volume', $AGENDA.'snapshot type');
-    is ($snap->{name},          'big-data-snapshot1475261774', $AGENDA.'snapshot name');
-    is ($snap->{resource_id},   $vol->{id}, $AGENDA.'snap volume id');
-    is_deeply ($snap->{tags}, [], $AGENDA.'snap empty tags');
-    is_deeply ($snap->{regions}, [ qw(nyc1) ], $AGENDA.'snapshot region');
-#--
-    $snap = $do->create_snapshot( $vol->{id},
-				  { "name" => "big-data-snapshot1475261774-2",
-				    "tags" => [ qw(some tags here) ],
-				  } )->get; $snap = $snap->{snapshot};
-    is ($snap->{name},          'big-data-snapshot1475261774-2', $AGENDA.'snapshot name 2');
-    is_deeply ($snap->{tags}, [ qw(some tags here) ], $AGENDA.'snap tags');
-#--
-    $f = $do->snapshots ( volume => $vol->{id} );
-    isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
-    my $snaps = $f->get; $snaps = $snaps->{snapshots};
 
-    ok ((scalar @$snaps) == 2, $AGENDA.'exactly 2 snapshots');
-    map { is($_->{resource_id}, $vol->{id}, $AGENDA.'snapshots resource id') }   @$snaps;
-    map { is_deeply($_->{regions}, [ qw(nyc1) ], $AGENDA.'snapshots regious') }  @$snaps;
+    if (1) {
+#-- snapshots
+	$f = $do->create_snapshot( $vol->{id}, { "name" => "big-data-snapshot1475261774" } );
+	isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
+	my $snap = $f->get; $snap = $snap->{snapshot};
+	is ($snap->{resource_type}, 'volume', $AGENDA.'snapshot type');
+	is ($snap->{name},          'big-data-snapshot1475261774', $AGENDA.'snapshot name');
+	is ($snap->{resource_id},   $vol->{id}, $AGENDA.'snap volume id');
+	ok( ! defined $snap->{tags} or (scalar @{$snap->{tags}}), $AGENDA.'snap empty tags');
+
+#	is_deeply ($snap->{tags}, [], $AGENDA.'snap empty tags');
+#	is_deeply ($snap->{regions}, [ qw(nyc1) ], $AGENDA.'snapshot region');
+#--
+	$snap = $do->create_snapshot( $vol->{id},
+				      { "name" => "big-data-snapshot1475261774-2",
+					"tags" => [ qw(some tags here) ],
+				      } )->get; $snap = $snap->{snapshot};
+	is ($snap->{name},          'big-data-snapshot1475261774-2', $AGENDA.'snapshot name 2');
+#	is_deeply ($snap->{tags}, [ qw(some tags here) ], $AGENDA.'snap tags');
+#--
+	$f = $do->snapshots ( volume => $vol->{id} );
+	isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
+	my $snaps = $f->get; $snaps = $snaps->{snapshots};
+
+	ok ((scalar @$snaps) == 2, $AGENDA.'exactly 2 snapshots');
+	map { is($_->{resource_id}, $vol->{id}, $AGENDA.'snapshots resource id') }   @$snaps;
+	map { is_deeply($_->{regions}, [ qw(nyc1) ], $AGENDA.'snapshots regions') }  @$snaps;
+
+	ok( eq_set( [ map { @{ $_->{tags} } } @$snaps ],
+		    [ qw(some tags here) ] ), $AGENDA.'snap all tags');
 #warn Dumper $snaps;
 #-- create for non-ex volume
-    throws_ok {
-	$do->create_snapshot( $vol->{id}.'xxxx',
+	throws_ok {
+	    $do->create_snapshot( $vol->{id}.'xxxx',
 				  { "name" => "big-data-snapshot1475261774-2",
 				    "tags" => [ qw(more tags here) ],
 				  } )->get;
-    } qr/not found/i, $AGENDA.'volume for snapshot not found';
-#-- delete snapshot
-    $f = $do->delete_snapshot ($snaps->[0]->{id});
-    isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
-    lives_ok {
-	$f->get;
-    } $AGENDA.'snapshot deleted';
-#--
-    throws_ok {
-	$do->delete_snapshot ($snaps->[0]->{id})->get;
-    } qr/not found/i, $AGENDA.'snapshot not found not deleted';
-    lives_ok {
-	$do->delete_snapshot ($snaps->[1]->{id})->get;
-    } $AGENDA.'snapshot 2 deleted';
+	} qr/not.+found/i, $AGENDA.'volume for snapshot not found';
+
+	#-- delete snapshot
+	$f = $do->delete_snapshot ($snaps->[0]->{id});
+	isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
+	lives_ok {
+	    $f->get;
+	} $AGENDA.'snapshot deleted';
+	#--
+	throws_ok {
+	    $do->delete_snapshot ($snaps->[0]->{id})->get;
+	} qr/not.+found/i, $AGENDA.'snapshot not found not deleted';
+	lives_ok {
+	    $do->delete_snapshot ($snaps->[1]->{id})->get;
+	} $AGENDA.'snapshot 2 deleted';
+    }
 #======
 #--
     $f = $do->delete_volume( id => $vol->{id}.'xxx' );
     isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
     throws_ok {
 	$f->get;
-    } qr/not found/i, $AGENDA.'not found not deleted';
+    } qr/not.+found/i, $AGENDA.'not found not deleted';
 #-- delete volume
     $f = $do->delete_volume( id => $vol->{id} );
     isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
@@ -178,14 +193,13 @@ if (DONE) {
     isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
     throws_ok {
 	$f->get;
-    } qr/not found/i, $AGENDA.'not deleted by wrong name';
+    } qr/invalid region/i, $AGENDA.'not deleted by wrong name';
 #--
-    $f = $do->delete_volume( name => $vol->{name}, 'sfo1' );
+    $f = $do->delete_volume( name => $vol->{name}, 'fra1' );
     isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
     lives_ok {
 	$f->get;
-    } $AGENDA.'deleted by name';
-
+    } $AGENDA.'deleted by name/region';
 #-- clean up volumes
     map {
 	diag "leftovers ".$_->{id};
@@ -226,6 +240,8 @@ if (DONE) {
     isa_ok($f, 'IO::Async::Future', $AGENDA.'future');
     $f->get;
     ok(1 , $AGENDA.'resize done');
+#-- cleanup
+    $do->delete_volume( name => $vol->{name}, 'nyc1' )->get;
 }
 
 done_testing;
