@@ -309,22 +309,13 @@ sub _handle_response {
     } elsif ($resp->code == HTTP_NO_CONTENT) {
 	$f->done( );
 
-    # } elsif ($resp->code == HTTP_CREATED) {                                                                   # POST returned data
-# 	if ($resp->content_type eq 'application/json') {                                                      # most likely another JSON here
-# 	    my $data = from_json ($resp->content);
-# #warn Dumper $data;
-# 	    if (my $action = $data->{action}) {                                                               # if we only get an action to wait for
-# #warn "got action".Dumper $action;
-# 		$do->_actions->{ $action->{id} } = [ $action, $f, 'v2/actions/'.$action->{id}, 42 ];          # memory this, the future, and a reasonable final result
-# 	    } else {                                                                                          # this looks insanly convoluted? I wholeheartedly agree.
-# 	    }
-# 	} else {
-# 	    $f->fail( "returned not JSON" );
-# 	}
     } elsif ($resp->code == HTTP_ACCEPTED
           || $resp->code == HTTP_CREATED) {                                                                   # for long-living actions
 #warn "got accepted";
-	if ($resp->content_type eq 'application/json') {
+	if (! $resp->content) {                                                                               # yes, we can really get a ACCEPTED, but no content :/
+	    $f->done( 42 );
+
+	} elsif ($resp->content_type eq 'application/json') {
 	    my $data = from_json ($resp->content);
 #warn Dumper $data;
 	    if (my $action = $data->{action}) {                                                               # if we only get an action to wait for
@@ -485,12 +476,13 @@ sub _mk_json_PUT_future {
 }
 
 sub _mk_json_DELETE_future {
-    my ($do, $path) = @_;
+    my ($do, $path, $headers) = @_;
 
     $log->debug( "launching future DELETE $path" );
     my $f = $do->http->loop->new_future;
     $do->http->do_request( uri    => $do->endpoint . $path,
-			   method => "DELETE")
+			   method => "DELETE",
+			   ($headers ? (headers => $headers) : ()),   )
              ->on_done( sub {
 		 my ($resp) = @_;
 #warn Dumper $resp;
@@ -763,7 +755,7 @@ sub delete_with_associated_resources {
     my ($do, $key, $val) = @_;
 
     if ($key eq 'id') {
-	return _mk_json_DELETE_future( $do, "v2/droplets/$val/destroy_with_associated_resources/dangerous" );
+	return _mk_json_DELETE_future( $do, "v2/droplets/$val/destroy_with_associated_resources/dangerous", { 'X-Dangerous' => 'true' } );
     } else {
 	$log->logdie( "unhandled in method delete_with_associated_resources" );
     }
