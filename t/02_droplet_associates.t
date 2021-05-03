@@ -117,7 +117,7 @@ if (DONE) {
     if (1) {
 #	Future->wait_all(
 #	    $do->snapshots ( volume => $vol->{id} ),
-	    $do->perform_droplet_actions( id => $dro->{id}, 'snapshot' ) 
+	    $do->create_droplet_snapshot( id => $dro->{id} ) 
 #    )
 		->get;
 
