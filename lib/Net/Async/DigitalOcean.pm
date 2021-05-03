@@ -209,6 +209,10 @@ But as the server chooses to I<type> results, the application will have to cope 
 	                        })->get;
     $d = $d->{droplet}; # now have the droplet itself
 
+=for readme include file="INSTALLATION" type="pod"
+
+=for readme stop
+
 =head1 INTERFACE
 
 There is only one object class here, that of the I<DigitalOcean> handle. All its methods - unless

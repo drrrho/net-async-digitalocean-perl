@@ -4,6 +4,7 @@ lib/Net/Async/DigitalOcean.pm
 MANIFEST			This list of files
 INSTALLATION
 README
+USAGE
 ontologies/digitalocean-clients.atm
 t/00_account.t
 t/00_auth.t
@@ -13,6 +14,7 @@ t/00_meta.t
 t/01_droplets.t
 t/02_droplet_volume.t
 t/02_droplet_associates.t
+t/02_droplet_domain.t
 t/01_volumes.t
 t/03_domains.t
 t/04_ssh_keys.t

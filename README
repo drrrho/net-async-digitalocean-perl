@@ -1,64 +1,168 @@
 NAME
 
-    Net::Async::DigitalOcean - Asynchronous Library for DigitalOcean REST
-    API
+    Net::Async::DigitalOcean - Async client for DigitalOcean REST APIv2
 
 SYNOPSIS
 
-xxxx
+        use IO::Async::Loop;
+        my $loop = IO::Async::Loop->new;      # the god-like event loop
+    
+        use Net::Async::DigitalOcean;
+        my $do = Net::Async::DigitalOcean->new( loop => $loop );
+        $do->start_actionables;               # activate polling incomplete actions
+    
+        # create a domain, wait for it
+        $do->create_domain( {name => "example.com"} )
+           ->get;   # block here
+    
+        # create a droplet, wait for it
+        my $dr = $do->create_droplet({
+            "name"       => "www.example.com",
+            "region"     => "nyc3",
+            "size"       => "s-1vcpu-1gb",
+            "image"      => "openfaas-18-04",
+            "ssh_keys"   => [],
+            "backups"    => 'true',
+            "ipv6"       => 'true',
+            "monitoring" => 'true',
+                                      })
+           ->get; $dr = $dr->{droplet}; # skip type
+    
+        # reboot
+        $do->reboot(id => $dr->{id})->get;
+        # reboot all droplets tagged with 'prod:web'
+        $do->reboot(tag => 'prod:web')->get;
+    
+        
 
-    no classes, do not like over-engineering, JSON direct
+OVERVIEW
 
-    spec
+ Platform
 
-INTERFACE
+    DigitalOcean <https://www.digitalocean.com/> is a cloud provider which
+    offers you to spin up servers (droplets) with a specified OS,
+    predefined sizes in predefined regions. You can also procure storage
+    volumes, attach those to the droplets, make snapshots of the volumes or
+    the whole droplet. There are also interfaces to create and manage
+    domains and domain record, ssh keys, various kinds of images or tags to
+    tag the above things. On top of that you can build systems with load
+    balancers, firewalls, distributable objects (Spaces, similar to
+    Amazon's S3). Or, you can go along with the Docker pathway and/or
+    create and run kubernetes structures.
 
- Constructor
+    See the DigitalOcean Platform
+    <https://docs.digitalocean.com/products/platform/> for more.
 
- Methods
+    DigitalOcean offers a web console to administrate all this, but also a
+    RESTy interface <https://docs.digitalocean.com/reference/api/>.
 
-AUTHOR
+ REST API, asynchronous
 
-    Robert Barta, <rho at devc.at>
+    This client library can be used by applications to talk to the various
+    DigitalOcean REST endpoints. But in contrast to similar libraries, such
+    as DigitalOcean or WebService::DigitalOcean, this library operates in
+    asynchronous mode:
 
-LICENSE AND COPYRIGHT
+    Firstly, all HTTP requests are launched asynchronously, without
+    blocking until their respective responses come in.
 
-    Copyright 2021 Robert Barta.
+    But more importantly, long-lasting actions
+    <https://www.digitalocean.com/community/tutorials/how-to-use-and-understand-action-objects-and-the-digitalocean-api>,
+    such as creating a droplet, snapshoting volumes or rebooting a set of
+    droplets are handled by the library itself; the application does not
+    need to keep track of these open actions, or keep polling for their
+    completion.
 
-    This program is free software; you can redistribute it and/or modify it
-    under the terms of the the Artistic License (2.0). You may obtain a
-    copy of the full license at:
+    The way this works is that the application first has to create the
+    event loop and - with it - create a handle to the DigitalOcean API
+    server:
 
-    http://www.perlfoundation.org/artistic_license_2_0
+        use IO::Async::Loop;
+        my $loop = IO::Async::Loop->new;
+    
+        use Net::Async::DigitalOcean;
+        my $do = Net::Async::DigitalOcean->new( loop => $loop );
+        $do->start_actionables;
 
-    Any use, modification, and distribution of the Standard or Modified
-    Versions is governed by this Artistic License. By using, modifying or
-    distributing the Package, you accept this license. Do not use, modify,
-    or distribute the Package, if you do not accept this license.
+    You also should start a timer actionables. In regular intervals it will
+    check with the server, whether open actions have been completed or not.
 
-    If your Modified Version has been derived from a Modified Version made
-    by someone other than you, you are nevertheless required to ensure that
-    your Modified Version complies with the requirements of this license.
+    With that, every method (except a few) return a Future object, such
+    when creating a droplet:
 
-    This license does not grant you the right to use any trademark, service
-    mark, tradename, or logo of the Copyright Holder.
+        my $f = $do->create_droplet({
+            "name"       => "example.com",
+            "region"     => "nyc3",
+            "size"       => "s-1vcpu-1gb",
+            "image"      => "openfaas-18-04",
+            ....
+                                      });
 
-    This license includes the non-exclusive, worldwide, free-of-charge
-    patent license to make, have made, use, offer to sell, sell, import and
-    otherwise transfer the Package with respect to any patent claims
-    licensable by the Copyright Holder that are necessarily infringed by
-    the Package. If you institute patent litigation (including a
-    cross-claim or counterclaim) against any party alleging that the
-    Package constitutes direct or contributory patent infringement, then
-    this Artistic License to you shall terminate on the date that such
-    litigation is filed.
+    The application can either choose to wait synchronously:
 
-    Disclaimer of Warranty: THE PACKAGE IS PROVIDED BY THE COPYRIGHT HOLDER
-    AND CONTRIBUTORS "AS IS' AND WITHOUT ANY EXPRESS OR IMPLIED WARRANTIES.
-    THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
-    PURPOSE, OR NON-INFRINGEMENT ARE DISCLAIMED TO THE EXTENT PERMITTED BY
-    YOUR LOCAL LAW. UNLESS REQUIRED BY LAW, NO COPYRIGHT HOLDER OR
-    CONTRIBUTOR WILL BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, OR
-    CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THE PACKAGE,
-    EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        my $d = $f->get; # wait, and receive the response as HASH
+
+    or, alternatively, can specify what should happen once the result comes
+    in:
+
+        $f->on_done( sub { my $d = shift;
+                           warn "droplet $d->{droplet}->{name} ready (well, almost)"; } );
+
+    Futures can also combined in various ways; one extremely useful is to
+    wait for several actions to complete in one go:
+
+        Future->wait_all(
+                          map { $do->create_volume( ... ) }
+                          qw(one two another) )->get;
+
+ Success and Failure
+
+    When futures succeed the application will usually get a result in form
+    of Perl HASH (see below). If a future fails and the failure is not
+    handled specifically (by adding a ->on_fail handler), then an exception
+    will be raised. The library tries to figure out what the real message
+    from the server was.
+
+ Data Structures
+
+    Another difference to other libraries in this arena is that it does not
+    try to artifically objectify things into classes, such as for the
+    droplet, image and other concepts here.
+
+    Instead, the library truthfully transports Perl HASHes and LISTs via
+    JSON to the server and back; even to the point to exactly reflect the
+    API specification
+    <https://developers.digitalocean.com/documentation/v2/> . That way you
+    can always look up what to precisely expect as result.
+
+    But as the server chooses to type results, the application will have to
+    cope with that
+
+        my $d = $do->create_droplet({
+            "name"       => "example.com",
+            ....
+                                    })->get;
+        $d = $d->{droplet}; # now have the droplet itself
+
+INSTALLATION OPTIONS
+
+      * installation via cpanm (or similar)
+
+          sudo cpanm Net::Async::DigitalOcean
+
+      * installation via downloaded .tgz file
+
+          ls -al Net-Async-DigitalOcean-*.tar.gz
+          tar zxvf Net*
+          pushd Net-Async-DigitalOcean-*
+          perl Build.PL
+          ./Build installdeps
+          sudo ./Build install
+
+      * access to propriatory Debian repository http://packages.devc.at/
+
+         sudo wget -O - http://packages.devc.at/stretch/templescript.list > /etc/apt/sources.list.d/templescript.list
+         sudo wget -O - http://packages.devc.at/jessie/archive.key|apt-key add -
+         sudo apt update
+         sudo apt install libnet-async-digitalocean-perl
 
