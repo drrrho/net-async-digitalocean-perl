@@ -97,7 +97,7 @@ or, alternatively, can specify what should happen once the result comes in:
     $f->on_done( sub { my $d = shift;
                        warn "droplet $d->{droplet}->{name} ready (well, almost)"; } );
 
-Futures can also combined in various ways; one extremely useful is to wait for several actions to
+Futures can also be combined in various ways; one extremely useful is to wait for several actions to
 complete in one go:
 
     Future->wait_all(
@@ -106,7 +106,7 @@ complete in one go:
 
 ## Success and Failure
 
-When futures succeed the application will usually get a result in form of Perl HASH (see below). If
+When futures succeed, the application will usually get a result in form of a Perl HASH (see below). If
 a future fails and the failure is not handled specifically (by adding a `->on_fail` handler),
 then an exception will be raised. The library tries to figure out what the real message from the
 server was.
@@ -114,7 +114,7 @@ server was.
 ## Data Structures
 
 Another difference to other libraries in this arena is that it does not try to artifically
-_objectify_ things into classes, such as for the _droplet_, _image_ and other concepts here.
+_objectify_ things into classes, such as for the _droplet_, _image_ and other concepts.
 
 Instead, the library truthfully transports Perl HASHes and LISTs via JSON to the server and back;
 even to the point to **exactly** reflect the [API specification](https://developers.digitalocean.com/documentation/v2/) .
@@ -126,7 +126,7 @@ But as the server chooses to _type_ results, the application will have to cope w
         "name"       => "example.com",
         ....
                                 })->get;
-    $d = $d->{droplet}; # now have the droplet itself
+    $d = $d->{droplet}; # now I have the droplet itself
 
 # INSTALLATION OPTIONS
 
@@ -143,7 +143,7 @@ But as the server chooses to _type_ results, the application will have to cope w
         sudo ./Build installdeps
         sudo ./Build install
 
-- access to propriatory Debian repository http://packages.devc.at/
+- access to proprietary Debian repository http://packages.devc.at/
 
         sudo wget -O - http://packages.devc.at/stretch/templescript.list > /etc/apt/sources.list.d/templescript.list
         sudo wget -O - http://packages.devc.at/jessie/archive.key|apt-key add -
