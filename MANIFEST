@@ -3,7 +3,7 @@ Changes
 lib/Net/Async/DigitalOcean.pm
 MANIFEST			This list of files
 INSTALLATION
-README
+README.md
 USAGE
 ontologies/digitalocean-clients.atm
 t/00_account.t

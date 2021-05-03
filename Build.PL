@@ -16,7 +16,7 @@ sub DEBVERSION {
 sub ACTION_README {
     my $self = shift;
 
-    $self->do_system(qq{   pod2readme -t README lib/Net/Async/DigitalOcean.pm } );
+    $self->do_system(qq{   pod2readme -f markdown lib/Net/Async/DigitalOcean.pm } );
 }
 
 sub ACTION_debian {
