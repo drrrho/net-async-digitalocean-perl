@@ -274,7 +274,7 @@ use constant DIGITALOCEAN_API => 'https://api.digitalocean.com/v2';
 =cut
 
 has 'loop'                 => (isa => 'IO::Async::Loop',             is => 'ro' );
-has 'http'                 => (isa => 'Net::Async::HTTP',	     is => 'ro' );
+has '_http'                => (isa => 'Net::Async::HTTP',	     is => 'ro' );
 has 'endpoint'             => (isa => 'Str',		             is => 'ro' );
 has '_actions'             => (isa => 'HashRef', 		     is => 'ro', default => sub { {} });
 has '_actionables'         => (isa => 'IO::Async::Timer::Periodic',  is => 'rw' );
@@ -380,10 +380,9 @@ around BUILDARGS => sub {
     $options{loop}->add( $http );
 
     return $class->$orig (%options,
-                          http         => $http,
+                          _http        => $http,
 			  endpoint     => $endpoint,
 			  bearer       => $bearer,
-			  %options,
                           );
 };
 
@@ -446,7 +445,7 @@ sub start_actionables {
 	},
 	);
     $elf->_actionables( $actionables );
-    $elf->http->loop->add( $actionables );
+    $elf->_http->loop->add( $actionables );
     $actionables->start;
 }
 
@@ -475,9 +474,9 @@ sub _mk_json_GET_futures {
     my ($do, $path) = @_;
 
     $log->debug( "launching futures GET $path" );
-    my $f = $do->http->loop->new_future;
+    my $f = $do->_http->loop->new_future;
 #warn "futures setup ".$do->endpoint . $path;
-    $do->http->GET(  $do->endpoint . $path  )
+    $do->_http->GET(  $do->endpoint . $path  )
              ->on_done( sub {
 		 my ($resp) = @_;
 #warn "futures resp ".Dumper $resp;
@@ -519,8 +518,8 @@ sub _mk_json_GET_future {
     my ($do, $path) = @_;
 
     $log->debug( "launching future GET $path" );
-    my $f = $do->http->loop->new_future;
-    $do->http->GET(  $do->endpoint . $path  )
+    my $f = $do->_http->loop->new_future;
+    $do->_http->GET(  $do->endpoint . $path  )
              ->on_done( sub {
 		 my ($resp) = @_;
 #warn Dumper $resp;
@@ -589,7 +588,7 @@ sub _handle_response {
 #warn "got actions";
 		    foreach my $action (@{ $links->{actions} }) {
 #warn "action found ".Dumper $action;
-			my $f2 = $do->http->loop->new_future;                                                 # for every action we create a future
+			my $f2 = $do->_http->loop->new_future;                                                 # for every action we create a future
 			push @fs, $f2;                                                                        # collect the futures
 			$action->{status} = 'in-progress';                                                    # faking it
 			$do->_actions->{ $action->{id} } = [ $action, $f2, '/actions/'.$action->{id}, 42 ]; # memorize this, the future, the URL and a reasonable final result
@@ -613,7 +612,7 @@ sub _handle_response {
 #warn "got actions";
 		foreach my $action (@$actions) {
 #warn "action found ".Dumper $action;
-		    my $f2 = $do->http->loop->new_future;                                                     # for every action we create a future
+		    my $f2 = $do->_http->loop->new_future;                                                    # for every action we create a future
 		    push @fs, $f2; # collect the futures
 		    $do->_actions->{ $action->{id} } = [ $action, $f2, '/actions/'.$action->{id}, 42 ];       # memorize this, the future, the URL and a reasonable final result
 		    push @ids, $action->{id};                                                                 # collect the ids
@@ -653,7 +652,7 @@ sub _handle_response {
 	$do->loop->watch_time( after => $bounce_time,
 			       code  => sub { 
 				       $log->debug( "repeating previously failed request to ".$resp->request->uri );
-				       $do->http->do_request( request => $resp->request )
+				       $do->_http->do_request( request => $resp->request )
 					        ->on_done( sub {
 						    my ($resp) = @_;
 						    _handle_response( $do, $resp, $f );
@@ -686,8 +685,8 @@ sub _mk_json_POST_future {
 
     $log->debug( "launching future POST $path" );
 
-    my $f = $do->http->loop->new_future;
-    $do->http->POST( $do->endpoint . $path,
+    my $f = $do->_http->loop->new_future;
+    $do->_http->POST( $do->endpoint . $path,
 		     to_json( $body), 
 		     content_type => 'application/json' )
              ->on_done( sub {
@@ -707,8 +706,8 @@ sub _mk_json_PUT_future {
     my ($do, $path, $body) = @_;
 
     $log->debug( "launching future PUT $path" );
-    my $f = $do->http->loop->new_future;
-    $do->http->PUT( $do->endpoint . $path,
+    my $f = $do->_http->loop->new_future;
+    $do->_http->PUT( $do->endpoint . $path,
 		     to_json( $body), 
 		     content_type => 'application/json' )
              ->on_done( sub {
@@ -727,8 +726,8 @@ sub _mk_json_DELETE_future {
     my ($do, $path, $headers) = @_;
 
     $log->debug( "launching future DELETE $path" );
-    my $f = $do->http->loop->new_future;
-    $do->http->do_request( uri    => $do->endpoint . $path,
+    my $f = $do->_http->loop->new_future;
+    $do->_http->do_request( uri    => $do->endpoint . $path,
 			   method => "DELETE",
 			   ($headers ? (headers => $headers) : ()),   )
              ->on_done( sub {
@@ -1241,7 +1240,7 @@ of droplets, not just the first page.
 sub droplets_all {
     my ($do) = @_;
 
-    my $g = $do->http->loop->new_future;
+    my $g = $do->_http->loop->new_future;
     my @l = ();
 
     my $f = $do->droplets;
@@ -1691,7 +1690,7 @@ images. For that it will iterate over all pages, if any, and collects all result
 sub images_all {
     my $do = shift;
     
-    my $g = $do->http->loop->new_future;            # the HTTP request to be finished eventually
+    my $g = $do->_http->loop->new_future;            # the HTTP request to be finished eventually
     my @l = ();                                     # into this list all results will be collected
 
     my $f = $do->images( @_ );                      # launch the first request (with the original parameters)
