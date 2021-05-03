@@ -6,6 +6,7 @@ ignore.txt
 INSTALLATION
 lib/Net/Async/DigitalOcean.pm
 MANIFEST			This list of files
+USAGE
 ontologies/digitalocean-clients.atm
 README.md
 t/00_account.t
