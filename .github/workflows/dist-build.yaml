@@ -20,7 +20,7 @@ jobs:
       - name: automatically building distribution file
         run: |
           perl Build.PL
-          perl Build installdeps
+          perl Build installdeps --cpan_client 'cpanp -i --skiptest'
           perl Build dist
           
           
