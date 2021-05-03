@@ -251,14 +251,14 @@ if (DONE) {
 #warn Dumper $dro;
     is_deeply( $dro->{snapshot_ids}, [], $AGENDA.'no snapshots yet' );
     if (1) {
-	$do->perform_droplet_actions( id => $dro->{id}, 'snapshot' )->get;
+	$do->create_droplet_snapshot( id => $dro->{id} )->get;
 	my $dro3 = $do->droplet( id => $dro->{id} )->get; $dro3 = $dro3->{droplet};
 	is( (scalar @{ $dro3->{snapshot_ids} }), 1, $AGENDA.'1 snapshot' );
     }
 #--
     my $dro2;
     if (1) {
-	$do->perform_droplet_actions( id => $dro->{id}, 'snapshot' )->get;
+	$do->create_droplet_snapshot( id => $dro->{id} )->get;
 	$dro2 = $do->droplet( id => $dro->{id} )->get; $dro2 = $dro2->{droplet};
 #warn Dumper $dro2;
 	is( (scalar @{ $dro2->{snapshot_ids} }), 2, $AGENDA.'2 snapshots' );
@@ -280,7 +280,7 @@ if (DONE) {
 if (DONE) {
     my $AGENDA = q{droplet action: };
 
-    my $do = Net::Async::DigitalOcean->new( loop => $loop, endpoint => undef, tracing => 1 );
+    my $do = Net::Async::DigitalOcean->new( loop => $loop, endpoint => undef, ); #tracing => 1 );
     $do->start_actionables( 5 );
 
     my $f;
@@ -329,7 +329,7 @@ if (DONE) {
     }
 #--
     if (1) {
-	$f = $do->perform_droplet_actions( tag_name => 'env:prod', 'reboot' );
+	$f = $do->reboot( tag => 'env:prod' );
 	isa_ok($f, 'IO::Async::Future', $AGENDA.'tagged actions');
 	$f->get;
 	ok( 1, $AGENDA."tagged reboot done" );
@@ -353,7 +353,7 @@ if (DONE) {
 
 	             	 power_off
 	             	 power_on  	 )) {
-	    $f = $do->perform_droplet_actions( id => $dro1->{id}, $type );
+	    $f = $do->$type( id => $dro1->{id} );
 	    isa_ok($f, 'IO::Async::Future', $AGENDA.'future '.$type);
 	    $f->get;
 	    ok( 1, $AGENDA."$type done" );
@@ -365,32 +365,33 @@ if (DONE) {
 	my $dro3 = $do->droplet( id => $dro1->{id} )->get; $dro3 = $dro3->{droplet};
 	ok( (! grep { $_ eq 'ipv6' } @{ $dro3->{features} }), $AGENDA.'no ipv6');
 	ok( ! (scalar @{ $dro3->{networks}->{v6} }), $AGENDA.'no ipv6');
-	$f = $do->perform_droplet_actions( id => $dro1->{id}, 'enable_ipv6' );
+	$f = $do->enable_ipv6( id => $dro1->{id} );
 	isa_ok($f, 'IO::Async::Future', $AGENDA.'enable_ipv6');
 	$f->get;
 	ok( 1, $AGENDA."enable_ipv6 done" );
 
 	diag "rebooting droplet...";
-	$do->perform_droplet_actions( id => $dro3->{id}, 'reboot' )->get;
+	$do->reboot( id => $dro3->{id} )->get;
 
 	$dro3 = $do->droplet( id => $dro1->{id} )->get; $dro3 = $dro3->{droplet};
 #warn Dumper $dro3;
 	ok( (scalar @{ $dro3->{networks}->{v6} }), $AGENDA.'enabled ipv6');
 #	ok( (grep { $_ eq 'ipv6' } @{ $dro3->{features} }), $AGENDA.'enabled ipv6');
 #--
-	if (0 && 0) { # this does NOT work with DO
-	    $do->perform_droplet_actions( id => $dro1->{id}, 'disable_ipv6' )->get;
-	    ok( 1, $AGENDA."disable_ipv6 done" );
+# 	if (0 && 0) { # this does NOT work with DO
+# 	    $do->perform_droplet_actions( id => $dro1->{id}, 'disable_ipv6' )->get;
+# 	    ok( 1, $AGENDA."disable_ipv6 done" );
 
-	    diag "rebooting droplet...";
-	    $do->perform_droplet_actions( id => $dro3->{id}, 'reboot' )->get;
+# 	    diag "rebooting droplet...";
+# 	    $do->perform_droplet_actions( id => $dro3->{id}, 'reboot' )->get;
 
-	    $dro3 = $do->droplet( id => $dro1->{id} )->get; $dro3 = $dro3->{droplet};
-#warn Dumper $dro3;
-	    ok( ! (scalar @{ $dro3->{networks}->{v6} }), $AGENDA.'no ipv6');
-#	ok( (! grep { $_ eq 'ipv6' } @{ $dro3->{features} }), $AGENDA.'no ipv6');
-	}
+# 	    $dro3 = $do->droplet( id => $dro1->{id} )->get; $dro3 = $dro3->{droplet};
+# #warn Dumper $dro3;
+# 	    ok( ! (scalar @{ $dro3->{networks}->{v6} }), $AGENDA.'no ipv6');
+# #	ok( (! grep { $_ eq 'ipv6' } @{ $dro3->{features} }), $AGENDA.'no ipv6');
+# 	}
 #-- TODO
+
 	# $dro3 = $do->droplet( id => $dro2->{id} )->get; $dro3 = $dro3->{droplet};
 	# ok( (grep { $_ eq 'backups' } @{ $dro3->{features} }), $AGENDA.'backups enabled');
 	# $do->perform_droplet_actions( id => $dro2->{id}, 'disable_backups' )->get;
@@ -399,7 +400,7 @@ if (DONE) {
     }
 #--
     if (1) { # renaming
-	$f = $do->perform_droplet_rename( id => $dro2->{id}, 'rumsti' );
+	$f = $do->rename( id => $dro2->{id}, 'rumsti' );
 	isa_ok($f, 'IO::Async::Future', $AGENDA.'rename');
 	$f->get;
 	ok( 1, $AGENDA.'renaming complete');
@@ -409,7 +410,7 @@ if (DONE) {
     }
 #--
     if (1) { # rebuild
-	$f = $do->perform_droplet_rebuild( id => $dro2->{id}, 'dokku-18-04' );
+	$f = $do->rebuild( id => $dro2->{id}, 'dokku-18-04' );
 	isa_ok($f, 'IO::Async::Future', $AGENDA.'rebuild');
 	$f->get;
 	ok( 1, $AGENDA.'rebuilding complete');
@@ -420,7 +421,7 @@ if (DONE) {
     }
 #--
     if (1) { # resize
-	$f = $do->perform_droplet_resize( id => $dro2->{id}, 's-1vcpu-2gb', 'true' );
+	$f = $do->resize( id => $dro2->{id}, 's-1vcpu-2gb', 'true' );
 	isa_ok($f, 'IO::Async::Future', $AGENDA.'resize');
 	$f->get;
 	ok( 1, $AGENDA.'resizing complete');
@@ -433,6 +434,10 @@ if (DONE) {
 #-- cleanup
     $do->delete_droplet( id => $_->{id} )->get for @{ $dros->{droplets} }
 }
+
+done_testing;
+
+__END__
 
 if (0&&DONE) {
     my $AGENDA = q{droplets/backups: };
@@ -498,8 +503,4 @@ my $dro2; die "rework!!!";
 
 
 }
-
-done_testing;
-
-__END__
 
