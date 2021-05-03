@@ -213,6 +213,41 @@ But as the server chooses to I<type> results, the application will have to cope 
 
 =for readme stop
 
+=head2 Caveat Rate-Limiting
+
+To avoid being swamped the DigitalOcean server enforces several measures to limit abuse:
+
+=over
+
+=item * Limit on the number of HTTP requests within a certain time window.
+
+In the current version this client is rather aggressively trying to get things done. If you get
+too many TOO_MANY_REQUESTS errors, you may want to increase the poll time of actions (see C<actionables>).
+
+Future version will support policies to be set by the application.
+
+=item * Limit on the total number of droplets to be created
+
+Such a case will result in an exception.
+
+=item * Limit on the number of droplets to be created in one go
+
+Such a case will result in an exception.
+
+=item * Limit in the number of snapshots
+
+In that case the client will wait for the indicated time. That may well be several minutes!
+
+=item * Limit in the size of volumes
+
+Such a case will result in an exception.
+
+=item * Limit in the size of droplets
+
+Such a case will result in an exception.
+
+=back
+
 =head1 INTERFACE
 
 There is only one object class here, that of the I<DigitalOcean> handle. All its methods - unless
@@ -1807,6 +1842,26 @@ sub delete_key {
 }
 
 =pod
+
+=back
+
+=head1 SEE ALSO
+
+=over
+
+=item * INSTALLATION file in this distribution
+
+=item * examples/*.pl in this distribution
+
+=item * t/*.t test suites in this distribution
+
+=item * L<Github|https://github.com/drrrho/net-async-digitalocean-perl>
+
+=item * Topic Map knowledge in ontologies/digitalocean-clients.atm in this distribution
+
+=item * L<DigitalOcean API|https://docs.digitalocean.com/reference/api/>
+
+=item * Other Perl packages which talk to DigitalOcean are L<DigitalOcean> and L<WebService::DigitalOcean>
 
 =back
 
