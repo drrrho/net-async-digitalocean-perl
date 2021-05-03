@@ -1267,9 +1267,9 @@ sub droplets_all {
 
 NOT IMPLEMENTED
 
-=item * C<droplet_snapshots>
+=item * C<snapshots> (droplet => C<$droplet_id>)
 
-NOT IMPLEMENTED
+List all droplet snapshots for that very droplet.
 
 =item * C<backups> (C<$droplet_id>)
 
@@ -1575,6 +1575,10 @@ sub rename {
 =item * C<enable_ipv6> (tag => C<$tag>)
 
 Turn on IPv6 on specified droplet(s).
+
+Note, that it takes a while on the server to get this configured.
+
+Note, that there does not seem a way to disable IPv6 for a droplet.
 
 =cut
 
