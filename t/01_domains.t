@@ -45,9 +45,11 @@ eval {
 
 { # initalize and reset server state
     my $do = Net::Async::DigitalOcean->new( loop => $loop, endpoint => undef );
-    unless ($do->endpoint eq Net::Async::DigitalOcean->DIGITALOCEAN_API) {
+    eval {
 	$do->meta_reset->get;
-    };
+    }; if ($@) {
+	diag "meta interface missing => no reset";
+    }
 }
 
 if (DONE) {
