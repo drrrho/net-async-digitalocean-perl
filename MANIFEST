@@ -6,6 +6,7 @@ INSTALLATION
 README.md
 USAGE
 ontologies/digitalocean-clients.atm
+examples/.touch
 t/00_account.t
 t/00_auth.t
 t/00_constructor.t
