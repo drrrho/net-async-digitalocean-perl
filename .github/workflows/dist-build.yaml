@@ -22,3 +22,4 @@ jobs:
           perl Build.PL
           perl Build installdeps
           perl Build dist
+
