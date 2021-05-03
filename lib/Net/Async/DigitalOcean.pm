@@ -178,7 +178,7 @@ or, alternatively, can specify what should happen once the result comes in:
     $f->on_done( sub { my $d = shift;
                        warn "droplet $d->{droplet}->{name} ready (well, almost)"; } );
 
-Futures can also combined in various ways; one extremely useful is to wait for several actions to
+Futures can also be combined in various ways; one extremely useful is to wait for several actions to
 complete in one go:
 
     Future->wait_all(
@@ -187,7 +187,7 @@ complete in one go:
 
 =head2 Success and Failure
 
-When futures succeed the application will usually get a result in form of Perl HASH (see below). If
+When futures succeed, the application will usually get a result in form of a Perl HASH (see below). If
 a future fails and the failure is not handled specifically (by adding a C<< ->on_fail >> handler),
 then an exception will be raised. The library tries to figure out what the real message from the
 server was.
@@ -195,7 +195,7 @@ server was.
 =head2 Data Structures
 
 Another difference to other libraries in this arena is that it does not try to artifically
-I<objectify> things into classes, such as for the I<droplet>, I<image> and other concepts here.
+I<objectify> things into classes, such as for the I<droplet>, I<image> and other concepts.
 
 Instead, the library truthfully transports Perl HASHes and LISTs via JSON to the server and back;
 even to the point to B<exactly> reflect the L<API specification|https://developers.digitalocean.com/documentation/v2/> .
@@ -207,7 +207,7 @@ But as the server chooses to I<type> results, the application will have to cope 
 	"name"       => "example.com",
         ....
 	                        })->get;
-    $d = $d->{droplet}; # now have the droplet itself
+    $d = $d->{droplet}; # now I have the droplet itself
 
 =for readme include file="INSTALLATION" type="pod"
 

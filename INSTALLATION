@@ -15,7 +15,7 @@
     sudo ./Build installdeps
     sudo ./Build install
 
-=item * access to propriatory Debian repository http://packages.devc.at/
+=item * access to proprietary Debian repository http://packages.devc.at/
 
    sudo wget -O - http://packages.devc.at/stretch/templescript.list > /etc/apt/sources.list.d/templescript.list
    sudo wget -O - http://packages.devc.at/jessie/archive.key|apt-key add -
