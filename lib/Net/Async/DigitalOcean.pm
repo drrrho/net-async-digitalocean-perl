@@ -85,12 +85,17 @@ Net::Async::DigitalOcean - Async client for DigitalOcean REST APIv2
 
 =head1 SYNOPSIS
 
+    use IO::Async::Loop;
+    my $loop = IO::Async::Loop->new;      # the god-like event loop
+
     use Net::Async::DigitalOcean;
     my $do = Net::Async::DigitalOcean->new( loop => $loop );
+    $do->start_actionables;               # activate polling incomplete actions
 
     # create a domain, wait for it
-    $do->create_domain( {name      => "example.com"} )
+    $do->create_domain( {name => "example.com"} )
        ->get;   # block here
+
     # create a droplet, wait for it
     my $dr = $do->create_droplet({
 	"name"       => "www.example.com",
@@ -102,10 +107,14 @@ Net::Async::DigitalOcean - Async client for DigitalOcean REST APIv2
 	"ipv6"       => 'true',
 	"monitoring" => 'true',
 				  })
-                ->get; $dr = $dr->{droplet}; # skip type
-    # reboot
-    $do->reboot(id => $dr->{id});
+       ->get; $dr = $dr->{droplet}; # skip type
 
+    # reboot
+    $do->reboot(id => $dr->{id})->get;
+    # reboot all droplets tagged with 'prod:web'
+    $do->reboot(tag => 'prod:web')->get;
+
+    
 
 =head1 OVERVIEW
 
