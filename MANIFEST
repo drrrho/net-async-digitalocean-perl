@@ -18,6 +18,7 @@ t/03_domains.t
 t/04_ssh_keys.t
 t/manifest.t
 t/pod.t
+t/pod-coverage.t
 Makefile.PL
 META.yml
 META.json
