@@ -17,8 +17,8 @@ t/02_droplet_volume.t
 t/02_droplet_associates.t
 t/02_droplet_domain.t
 t/01_volumes.t
-t/03_domains.t
-t/04_ssh_keys.t
+t/01_domains.t
+t/01_ssh_keys.t
 t/manifest.t
 t/pod.t
 t/pod-coverage.t
