@@ -230,7 +230,7 @@ Base HTTP endpoint for the DigitalOcean APIv2
 
 =cut
 
-use constant DIGITALOCEAN_API => 'https://api.digitalocean.com/';    #TODO add v2
+use constant DIGITALOCEAN_API => 'https://api.digitalocean.com/v2';
 
 =pod
 
@@ -533,7 +533,7 @@ sub _handle_response {
 #warn Dumper $data;
 	    if (my $action = $data->{action}) {                                                               # if we only get an action to wait for
 #warn "got action".Dumper $action;
-		$do->_actions->{ $action->{id} } = [ $action, $f, 'v2/actions/'.$action->{id}, 42 ];          # memory this, the future, and a reasonable final result
+		$do->_actions->{ $action->{id} } = [ $action, $f, '/actions/'.$action->{id}, 42 ];          # memory this, the future, and a reasonable final result
 
 	    } elsif (my $links = $data->{links}) {
 #warn "link actions";
@@ -557,7 +557,7 @@ sub _handle_response {
 			my $f2 = $do->http->loop->new_future;                                                 # for every action we create a future
 			push @fs, $f2;                                                                        # collect the futures
 			$action->{status} = 'in-progress';                                                    # faking it
-			$do->_actions->{ $action->{id} } = [ $action, $f2, 'v2/actions/'.$action->{id}, 42 ]; # memorize this, the future, the URL and a reasonable final result
+			$do->_actions->{ $action->{id} } = [ $action, $f2, '/actions/'.$action->{id}, 42 ]; # memorize this, the future, the URL and a reasonable final result
 			push @ids, $action->{id};                                                             # collect the ids
 		    }
 #warn "ids ".Dumper \@ids;
@@ -580,7 +580,7 @@ sub _handle_response {
 #warn "action found ".Dumper $action;
 		    my $f2 = $do->http->loop->new_future;                                                     # for every action we create a future
 		    push @fs, $f2; # collect the futures
-		    $do->_actions->{ $action->{id} } = [ $action, $f2, 'v2/actions/'.$action->{id}, 42 ];     # memorize this, the future, the URL and a reasonable final result
+		    $do->_actions->{ $action->{id} } = [ $action, $f2, '/actions/'.$action->{id}, 42 ];       # memorize this, the future, the URL and a reasonable final result
 		    push @ids, $action->{id};                                                                 # collect the ids
 		}
 		my $f3 = Future->wait_all( @fs )                                                              # all these futures will be waited for to be done, before
@@ -807,7 +807,7 @@ Returns account information for the current user (as identified by the I<bearer 
 
 sub account {
     my ($do) = @_;
-    return _mk_json_GET_future( $do, "v2/account" );
+    return _mk_json_GET_future( $do, "/account" );
 }
 
 =pod
@@ -832,9 +832,9 @@ sub volumes {
     my ($do, $key, $val) = @_;
     
     if (defined $key && $key eq 'name') {
-	return _mk_json_GET_future( $do, "v2/volumes?name=$val" );
+	return _mk_json_GET_future( $do, "/volumes?name=$val" );
     } else {
-	return _mk_json_GET_future( $do, 'v2/volumes' );
+	return _mk_json_GET_future( $do, '/volumes' );
     }
 }
 
@@ -848,7 +848,7 @@ Instigate to create a volume with your spec.
 
 sub create_volume {
     my ($do, $v) = @_;
-    return _mk_json_POST_future( $do, 'v2/volumes', $v);
+    return _mk_json_POST_future( $do, '/volumes', $v);
 }
     
 =pod
@@ -865,9 +865,9 @@ sub volume {
     my ($do, $key, $val, $reg) = @_;
 
     if ($key eq 'id') {
-	return _mk_json_GET_future( $do, "v2/volumes/$val" );
+	return _mk_json_GET_future( $do, "/volumes/$val" );
     } else {
-	return _mk_json_GET_future( $do, "v2/volumes?name=$val&region=$reg" );
+	return _mk_json_GET_future( $do, "/volumes?name=$val&region=$reg" );
     }
 }
 
@@ -883,9 +883,9 @@ sub snapshots {
     my ($do, $key, $val ) = @_;
 
     if ($key eq 'volume') {
-	return _mk_json_GET_future( $do, "v2/volumes/$val/snapshots");
+	return _mk_json_GET_future( $do, "/volumes/$val/snapshots");
     } elsif ($key eq 'droplet') {
-	return _mk_json_GET_future( $do, "v2/droplets/$val/snapshots");
+	return _mk_json_GET_future( $do, "/droplets/$val/snapshots");
     } else {
 	$log->logdie( "unhandled in method snapshots");
     }
@@ -901,7 +901,7 @@ Creates a new volume snapshot with C<name> and C<tags> provided in the HASH.
 
 sub create_snapshot {
     my ($do, $volid, $s ) = @_;
-    return _mk_json_POST_future( $do, "v2/volumes/$volid/snapshots", $s);
+    return _mk_json_POST_future( $do, "/volumes/$volid/snapshots", $s);
 }
 
 =pod
@@ -918,10 +918,10 @@ sub delete_volume {
     my ($do, $key, $val, $reg) = @_;
 
     if ($key eq 'id') {
-	return _mk_json_DELETE_future( $do, 'v2/volumes/'. $val );
+	return _mk_json_DELETE_future( $do, '/volumes/'. $val );
 
     } elsif ($key eq 'name') {
-	return _mk_json_DELETE_future( $do, "v2/volumes?name=$val&region=$reg" );
+	return _mk_json_DELETE_future( $do, "/volumes?name=$val&region=$reg" );
 
     } else {
 	$log->logdie ("invalid specification");
@@ -938,7 +938,7 @@ Delete volume snapshot with a given id.
 
 sub delete_snapshot {
     my ($do, $id) = @_;
-    return _mk_json_DELETE_future( $do, 'v2/snapshots/'. $id );
+    return _mk_json_DELETE_future( $do, '/snapshots/'. $id );
 }
 
 =pod
@@ -967,12 +967,12 @@ Detaching by name is NOT IMPLEMENTED.
 
 sub volume_attach {
     my ($do, $vid, $attach) = @_;
-    return _mk_json_POST_future( $do, "v2/volumes/$vid/actions", $attach);
+    return _mk_json_POST_future( $do, "/volumes/$vid/actions", $attach);
 }
 
 sub volume_detach {
     my ($do, $vid, $attach) = @_;
-    return _mk_json_POST_future( $do, "v2/volumes/$vid/actions", $attach);
+    return _mk_json_POST_future( $do, "/volumes/$vid/actions", $attach);
 }
 
 =pod
@@ -985,7 +985,7 @@ Resizes the volume.
 
 sub volume_resize {
     my ($do, $vid, $resize) = @_;
-    return _mk_json_POST_future( $do, "v2/volumes/$vid/actions", $resize);
+    return _mk_json_POST_future( $do, "/volumes/$vid/actions", $resize);
 }
 
 =pod
@@ -1004,7 +1004,7 @@ Lists all domains.
 
 sub domains {
     my ($do) = @_;
-    return _mk_json_GET_futures( $do, "v2/domains" );
+    return _mk_json_GET_futures( $do, "/domains" );
 }
 
 =pod
@@ -1020,7 +1020,7 @@ authoritative for such a domain.
 
 sub create_domain {
     my ($do, $d) = @_;
-    return _mk_json_POST_future( $do, 'v2/domains', $d);
+    return _mk_json_POST_future( $do, '/domains', $d);
 }
 
 =pod
@@ -1033,7 +1033,7 @@ Retrieves information of a named domain.
 
 sub domain {
     my ($do, $name) = @_;
-    return _mk_json_GET_future( $do, "v2/domains/$name");
+    return _mk_json_GET_future( $do, "/domains/$name");
 }
 
 =pod
@@ -1046,7 +1046,7 @@ Deletes the named domain.
 
 sub delete_domain {
     my ($do, $name) = @_;
-    return _mk_json_DELETE_future( $do, 'v2/domains/'. $name );
+    return _mk_json_DELETE_future( $do, '/domains/'. $name );
 }
 
 =pod
@@ -1076,7 +1076,7 @@ sub domain_records {
     push @params, "name=" . ($options{name} eq '@' ? $name : $options{name})
 	if $options{name};
 
-    return _mk_json_GET_futures( $do, "v2/domains/$name/records" .(@params ? '?'.join '&', @params : '') );
+    return _mk_json_GET_futures( $do, "/domains/$name/records" .(@params ? '?'.join '&', @params : '') );
 }
 
 =pod
@@ -1089,7 +1089,7 @@ Create new domain record within the named domain.
 
 sub create_record {
     my ($do, $name, $r) = @_;
-    return _mk_json_POST_future( $do, "v2/domains/$name/records", $r);
+    return _mk_json_POST_future( $do, "/domains/$name/records", $r);
 }
 
 =pod
@@ -1102,7 +1102,7 @@ Retrieves the record for a given id from the named domain.
 
 sub domain_record {
     my ($do, $name, $id) = @_;
-    return _mk_json_GET_future( $do, "v2/domains/$name/records/$id");
+    return _mk_json_GET_future( $do, "/domains/$name/records/$id");
 }
 
 =pod
@@ -1117,7 +1117,7 @@ named domain.
 
 sub update_record {
     my ($do, $name, $id, $r) = @_;
-    return _mk_json_PUT_future( $do, "v2/domains/$name/records/$id", $r);
+    return _mk_json_PUT_future( $do, "/domains/$name/records/$id", $r);
 }
 
 =pod
@@ -1130,7 +1130,7 @@ Deletes the record with the given id from the named domain.
 
 sub delete_record {
     my ($do, $name, $id) = @_;
-    return _mk_json_DELETE_future( $do, "v2/domains/$name/records/$id");
+    return _mk_json_DELETE_future( $do, "/domains/$name/records/$id");
 }
 
 =pod
@@ -1156,7 +1156,7 @@ information a bit later.
 
 sub create_droplet {
     my ($do, $v) = @_;
-    return _mk_json_POST_future( $do, 'v2/droplets', $v);
+    return _mk_json_POST_future( $do, '/droplets', $v);
 }
 
 =pod
@@ -1173,9 +1173,9 @@ sub droplet {
     my ($do, $key, $val, $reg) = @_;
 
     if ($key eq 'id') {
-	return _mk_json_GET_future( $do, "v2/droplets/$val" );
+	return _mk_json_GET_future( $do, "/droplets/$val" );
     } else {
-	return _mk_json_GET_future( $do, "v2/droplets?name=$val&region=$reg" );
+	return _mk_json_GET_future( $do, "/droplets?name=$val&region=$reg" );
     }
 }
 
@@ -1191,7 +1191,7 @@ Listing of droplets based on name is NOT IMPLEMENTED.
 
 sub droplets {
     my ($do) = @_;
-    return _mk_json_GET_futures( $do, "v2/droplets");
+    return _mk_json_GET_futures( $do, "/droplets");
 }
 
 =pod
@@ -1245,7 +1245,7 @@ List backups of droplet specified by id.
 
 sub backups {
     my ($do, $id ) = @_;
-    return _mk_json_GET_future( $do, "v2/droplets/$id/backups");
+    return _mk_json_GET_future( $do, "/droplets/$id/backups");
 }
 
 =pod
@@ -1264,7 +1264,7 @@ sub droplet_actions {
     my ($do, $key, $val) = @_;
 
     if ($key eq 'id') {
-	return _mk_json_GET_future( $do, "v2/droplets/$val/actions" );
+	return _mk_json_GET_future( $do, "/droplets/$val/actions" );
     } elsif ($key eq 'tag') {
 	$log->logdie( "unhandled in method droplet_actions" );
     } else {
@@ -1286,9 +1286,9 @@ sub delete_droplet {
     my ($do, $key, $val) = @_;
 
     if ($key eq 'id') {
-	return _mk_json_DELETE_future( $do, "v2/droplets/$val" );
+	return _mk_json_DELETE_future( $do, "/droplets/$val" );
     } elsif ($key eq 'tag') {
-	return _mk_json_DELETE_future( $do, "v2/droplets?tag_name=$val" );
+	return _mk_json_DELETE_future( $do, "/droplets?tag_name=$val" );
     } else {
 	$log->logdie( "unhandled in method delete_droplet" );
     }
@@ -1310,9 +1310,9 @@ sub associated_resources {
     my ($do, $key, $val) = @_;
 
     if ($key eq 'id') {
-	return _mk_json_GET_future( $do, "v2/droplets/$val/destroy_with_associated_resources" );
+	return _mk_json_GET_future( $do, "/droplets/$val/destroy_with_associated_resources" );
     } elsif ($key eq 'check_status') {
-	return _mk_json_GET_future( $do, "v2/droplets/$val/destroy_with_associated_resources/status" );
+	return _mk_json_GET_future( $do, "/droplets/$val/destroy_with_associated_resources/status" );
     } else {
 	$log->logdie( "unhandled in method associated_resources" );
     }
@@ -1334,7 +1334,7 @@ sub delete_with_associated_resources {
     my ($do, $key, $val) = @_;
 
     if ($key eq 'id') {
-	return _mk_json_DELETE_future( $do, "v2/droplets/$val/destroy_with_associated_resources/dangerous", { 'X-Dangerous' => 'true' } );
+	return _mk_json_DELETE_future( $do, "/droplets/$val/destroy_with_associated_resources/dangerous", { 'X-Dangerous' => 'true' } );
     } else {
 	$log->logdie( "unhandled in method delete_with_associated_resources" );
     }
@@ -1597,9 +1597,9 @@ sub _perform_droplet_action {
     my ($do, $key, $val, $body) = @_;
 
     if ($key eq 'id') {
-	return _mk_json_POST_future( $do, "v2/droplets/$val/actions",          $body );
+	return _mk_json_POST_future( $do, "/droplets/$val/actions",          $body );
     } elsif ($key eq 'tag') {
-	return _mk_json_POST_future( $do, "v2/droplets/actions?tag_name=$val", $body );
+	return _mk_json_POST_future( $do, "/droplets/actions?tag_name=$val", $body );
     } else {
 	$log->logdie( "unhandled in method _perform_droplet_action" );
     }
@@ -1638,9 +1638,9 @@ List all images tagged with the tag.
 sub images {
     my ($do, $key, $val) = @_;
     if ($key) {
-	return _mk_json_GET_futures( $do, "v2/images?$key=$val");
+	return _mk_json_GET_futures( $do, "/images?$key=$val");
     } else {
-	return _mk_json_GET_futures( $do, "v2/images");
+	return _mk_json_GET_futures( $do, "/images");
     }
 }
 
@@ -1713,7 +1713,7 @@ List all available regions.
 
 sub regions {
     my ($do) = @_;
-    return _mk_json_GET_future( $do, "v2/regions"  );
+    return _mk_json_GET_future( $do, "/regions"  );
 }
 
 =pod
@@ -1732,7 +1732,7 @@ List all sizes.
 
 sub sizes {
     my ($do) = @_;
-    return _mk_json_GET_future( $do, "v2/sizes" );
+    return _mk_json_GET_future( $do, "/sizes" );
 }
 
 =pod
@@ -1751,7 +1751,7 @@ List all keys.
 
 sub keys {
     my ($do, $id) = @_;
-    return _mk_json_GET_futures( $do, "v2/account/keys");
+    return _mk_json_GET_futures( $do, "/account/keys");
 }
 
 =pod
@@ -1764,7 +1764,7 @@ Create a new key with a provided HASH.
 
 sub create_key {
     my ($do, $key) = @_;
-    return _mk_json_POST_future( $do, "v2/account/keys", $key);
+    return _mk_json_POST_future( $do, "/account/keys", $key);
 }
 
 =pod
@@ -1777,7 +1777,7 @@ Retrieve existing key given by the id.
 
 sub key {
     my ($do, $id) = @_;
-    return _mk_json_GET_future( $do, "v2/account/keys/$id");
+    return _mk_json_GET_future( $do, "/account/keys/$id");
 }
 
 =pod
@@ -1790,7 +1790,7 @@ Selectively update fields for a given key.
 
 sub update_key {
     my ($do, $id, $key) = @_;
-    return _mk_json_PUT_future( $do, "v2/account/keys/$id", $key);
+    return _mk_json_PUT_future( $do, "/account/keys/$id", $key);
 }
 
 =pod
@@ -1803,7 +1803,7 @@ Delete a specific key.
 
 sub delete_key {
     my ($do, $id) = @_;
-    return _mk_json_DELETE_future( $do, "v2/account/keys/$id");
+    return _mk_json_DELETE_future( $do, "/account/keys/$id");
 }
 
 =pod
