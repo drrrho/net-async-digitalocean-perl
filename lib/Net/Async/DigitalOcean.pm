@@ -11,7 +11,7 @@ sub prepare_request {
     my ($elf, $req) = @_;
 #warn "prepare $elf";
     $elf->SUPER::prepare_request( $req );
-    warn $req->as_string . " >>>> DigitalOcean" if $elf->{digitalocean_trace};
+    warn ">>>>>>>>> DigitalOcean\n" . $req->as_string  if $elf->{digitalocean_trace};
 
     if (my $limits = $elf->{digitalocean_rate_limit}) {                       # if we already experienced some limit information from the server
 #warn "rate_limit current ".Dumper $limits;  # 
@@ -47,7 +47,7 @@ sub prepare_request {
 
 sub process_response {
     my ($elf, $resp) = @_;
-    warn "DigitalOcean >>>> ".$resp->as_string if $elf->{digitalocean_trace};
+    warn "DigitalOcean >>>>>>>>>\n".$resp->as_string if $elf->{digitalocean_trace};
 
     if ($elf->{digitalocean_rate_limit_policy}) { # if this is turned on
 	if (my $limit = $resp->headers->header('RateLimit-Limit')) { # and if we actually got something
