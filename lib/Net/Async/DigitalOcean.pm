@@ -131,7 +131,8 @@ with the Docker pathway and/or create and run kubernetes structures.
 See the L<DigitalOcean Platform|https://docs.digitalocean.com/products/platform/> for more.
 
 DigitalOcean offers a web console to administrate all this, but also a
-L<RESTy interface|https://docs.digitalocean.com/reference/api/>.
+L<RESTy interface|https://docs.digitalocean.com/reference/api/>
+(and L<Terraform|https://www.digitalocean.com/community/tutorials/how-to-use-terraform-with-digitalocean> for that matter)
 
 =head2 REST API, asynchronous
 
@@ -188,8 +189,8 @@ complete in one go:
 =head2 Success and Failure
 
 When futures succeed, the application will usually get a result in form of a Perl HASH (see below). If
-a future fails and the failure is not handled specifically (by adding a C<< ->on_fail >> handler),
-then an exception will be raised. The library tries to figure out what the real message from the
+a future fails and has been configured to have a C<< ->on_fail >> handler, then that will be invoked.
+Otherwise exception will be raised. The library tries to figure out what the real message from the
 server was.
 
 =head2 Data Structures
