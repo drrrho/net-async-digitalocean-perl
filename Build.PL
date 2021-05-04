@@ -10,7 +10,15 @@ my $debian = Module::Build->subclass(
     code => <<'SUBCLASS' );
 
 sub DEBVERSION {
-    return 3;
+    return 1;
+}
+
+sub ACTION_cpan_upload {
+    my $self = shift;
+
+    $self->depends_on("dist");
+    my $version = $self->dist_version;
+    $self->do_system(qq{   cpan-upload Net-Async-DigitalOcean-${version}.tar.gz } );
 }
 
 sub ACTION_README {
