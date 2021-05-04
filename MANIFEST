@@ -1,4 +1,3 @@
-.github/workflows/dist-build.yaml
 Build.PL
 Changes
 examples/.touch
