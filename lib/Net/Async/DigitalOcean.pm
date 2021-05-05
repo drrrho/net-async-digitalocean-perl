@@ -190,7 +190,7 @@ complete in one go:
 
 When futures succeed, the application will usually get a result in form of a Perl HASH (see below). If
 a future fails and has been configured to have a C<< ->on_fail >> handler, then that will be invoked.
-Otherwise exception will be raised. The library tries to figure out what the real message from the
+Otherwise an exception will be raised. The library tries to figure out what the real message from the
 server was.
 
 =head2 Data Structures
